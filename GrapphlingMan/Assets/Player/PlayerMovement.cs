@@ -19,12 +19,27 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Jump")]
     public float jumpBufferTime = 0.15f;
-    public float swingJumpForce = 8f;       // Сила прыжка с верёвки
+    public float swingJumpForce = 8f;
 
     [Header("Joystick")]
     public Joystick joystick;
     public bool isDead;
     public bool freeze;
+
+    [Header("Hands")]
+    public GameObject hands; // Ссылка на GameObject с руками
+    [Header("Idle Settings")]
+    public float idleShakeAmount = 0.005f; // Амплитуда тряски в состоянии покоя
+    public float idleShakeSpeed = 2f; // Скорость тряски в состоянии покоя
+    [Header("Walk Settings")]
+    public float walkShakeAmount = 0.015f; // Амплитуда тряски при ходьбе
+    public float walkShakeSpeed = 4f; // Скорость тряски при ходьбе
+    [Header("Run Settings")]
+    public float runShakeAmount = 0.03f; // Амплитуда тряски при беге
+    public float runShakeSpeed = 6f; // Скорость тряски при беге
+    [Header("Jump Settings")]
+    public float jumpShakeAmount = 0.05f; // Амплитуда тряски при прыжке
+    public float jumpShakeSpeed = 8f; // Скорость тряски при прыжке
 
     private CharacterController controller;
     private Vector3 velocity;
@@ -36,12 +51,21 @@ public class PlayerMovement : MonoBehaviour
     private float swingForce;
     private float maxFallSpeed = -25f;
 
-    // Ссылка на Grappling чтобы остановить верёвку при прыжке
+    private Vector3 initialHandsPosition;
+    private float currentShakeAmount;
+    private float currentShakeSpeed;
+    private bool isJumping;
+    private float shakeTimer;
+
     public Grappling grappling;
 
     private void Start()
     {
         controller = GetComponent<CharacterController>();
+        if (hands != null)
+        {
+            initialHandsPosition = hands.transform.localPosition;
+        }
     }
 
     private void Update()
@@ -61,7 +85,7 @@ public class PlayerMovement : MonoBehaviour
             jumpBufferTimer = 0f;
             if (grappling != null)
                 grappling.StopGrappleExternal();
-            StopSwing(); // явно сбрасываем состояние свинга в PM
+            StopSwing();
             return;
         }
 
@@ -70,7 +94,39 @@ public class PlayerMovement : MonoBehaviour
             float x = Input.GetAxis("Horizontal") + (joystick != null ? joystick.Horizontal : 0f);
             float z = Input.GetAxis("Vertical") + (joystick != null ? joystick.Vertical : 0f);
 
+            bool isMoving = Mathf.Abs(x) > 0.1f || Mathf.Abs(z) > 0.1f;
+            //bool isRunning = isMoving && Input.GetKey(KeyCode.LeftShift);
+
+            if (!isGrounded)
+            {
+                currentShakeAmount = jumpShakeAmount;
+                currentShakeSpeed = jumpShakeSpeed;
+                isJumping = true;
+            }
+            //else if (isRunning)
+            //{
+            //    currentShakeAmount = runShakeAmount;
+            //    currentShakeSpeed = runShakeSpeed;
+            //    isJumping = false;
+            //}
+            else if (isMoving)
+            {
+                currentShakeAmount = walkShakeAmount;
+                currentShakeSpeed = walkShakeSpeed;
+                isJumping = false;
+            }
+            else
+            {
+                currentShakeAmount = idleShakeAmount;
+                currentShakeSpeed = idleShakeSpeed;
+                isJumping = false;
+            }
+
             Vector3 move = (transform.right * x + transform.forward * z) * MoveSpeed;
+            //if (isRunning)
+            //{
+            //    move *= 1.5f; 
+            //}
             controller.Move(move * Time.deltaTime);
 
             if (isGrounded)
@@ -92,6 +148,13 @@ public class PlayerMovement : MonoBehaviour
             }
 
             controller.Move(velocity * Time.deltaTime);
+        }
+
+        if (hands != null)
+        {
+            shakeTimer += Time.deltaTime * currentShakeSpeed;
+            float shakeOffset = Mathf.Sin(shakeTimer) * currentShakeAmount;
+            hands.transform.localPosition = initialHandsPosition + new Vector3(0, shakeOffset, 0);
         }
     }
 

@@ -6,7 +6,7 @@ public class Grappling : MonoBehaviour
     public Transform cam;
     public Transform gunTip;
     public LineRenderer lr;
-    
+
     public LayerMask whatIsGrappleable;
     public PlayerMovement pm;
 
@@ -24,7 +24,9 @@ public class Grappling : MonoBehaviour
     [Header("Rope Physics")]
     public float ropeSag = 0.08f;
     public float ropeWaveFreq = 6f;
-    public float ropeWaveAmp = 0.15f;
+    public float ropeWaveAmp = 1f; // Амплитуда волны при полёте
+    [Range(0f, 1f)] public float waveStartOffset = 0.3f; // Начало волны от начала верёвки
+    public float attachedRopeWaveAmp = 0.1f; // Амплитуда волны после зацепа
 
     [Header("Swing Physics")]
     public float swingPullSpeed = 5f;
@@ -71,7 +73,6 @@ public class Grappling : MonoBehaviour
         if (grapplingCdTimer > 0)
             grapplingCdTimer -= Time.deltaTime;
 
-        // Если принудительно остановлено — ничего не делаем
         if (forceStoped) return;
 
         if (grappling && !attached && !missed)
@@ -136,7 +137,6 @@ public class Grappling : MonoBehaviour
         lr.positionCount = ropeSegments;
         lr.enabled = true;
         lr.material = materialFlying;
-        lr.enabled = true;
     }
 
     private void OnRopeAttached()
@@ -190,7 +190,8 @@ public class Grappling : MonoBehaviour
             float t = i / (float)(ropeSegments - 1);
             Vector3 point = Vector3.Lerp(start, end, t);
 
-            float offsetY;
+            float offsetY = 0;
+
             if (attached)
             {
                 float dynamicSag = ropeSag;
@@ -198,19 +199,27 @@ public class Grappling : MonoBehaviour
 
                 Vector3 ropeDir = (end - start).normalized;
                 Vector3 sideAxis = Vector3.Cross(ropeDir, Vector3.up).normalized;
-                float sideWave = Mathf.Sin(waveTime * ropeWaveFreq * 0.5f + t * Mathf.PI)
-                                   * ropeWaveAmp * 0.3f;
-                point += sideAxis * sideWave;
+
+                if (t > waveStartOffset)
+                {
+                    float sideWave = Mathf.Sin(waveTime * ropeWaveFreq * 0.5f + t * Mathf.PI)
+                                     * attachedRopeWaveAmp * 0.3f;
+                    point += sideAxis * sideWave;
+                }
+
                 waveTime += Time.deltaTime * 0.01f;
             }
             else
             {
-                offsetY = ropeWaveAmp
-                          * Mathf.Sin(t * Mathf.PI * 2f + waveTime * ropeWaveFreq)
-                          * ropeProgress;
+                if (t > waveStartOffset)
+                {
+                    offsetY = ropeWaveAmp
+                              * Mathf.Sin(t * Mathf.PI * 2f + waveTime * ropeWaveFreq)
+                              * ropeProgress;
+                }
             }
 
-            point += Vector3.down * offsetY * ropeProgress;
+            point += Vector3.down * offsetY;
             lr.SetPosition(i, point);
         }
     }
@@ -224,6 +233,5 @@ public class Grappling : MonoBehaviour
         lr.enabled = false;
         lr.positionCount = 0;
         lr.gameObject.SetActive(false);
-        // НЕ вызываем pm.StopSwing() — PlayerMovement сам вызвал StopSwing
     }
 }

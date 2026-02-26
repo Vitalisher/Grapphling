@@ -7,7 +7,7 @@ public class WeaponBase : MonoBehaviour
     [Header("Base Weapon Settings")]
     public float damage = 20f;
     public float range = 50f;
-    public float fireRate = 0.2f;        // ������ ����� ����������
+    public float fireRate = 0.2f;
     public int magazineSize = 30;
     public int totalAmmo = 90;
     public float reloadTime = 1.5f;
@@ -15,12 +15,13 @@ public class WeaponBase : MonoBehaviour
     [Header("References")]
     public Transform cam;
     public ParticleSystem muzzleFlash;
-    public GameObject impactEffect;          // ������ ���������
+    public GameObject impactEffect;
+    public float bulletSpeed = 100f;
 
     [Header("Recoil")]
-    public float recoilAmount = 2f;          // ���� ������
-    public float recoilSpeed = 10f;         // �������� ���������� ������
-    public float recoilRecovery = 6f;          // �������� ��������
+    public float recoilAmount = 2f;
+    public float recoilSpeed = 10f;
+    public float recoilRecovery = 6f;
 
     protected int currentAmmo;
     protected int currentTotalAmmo;
@@ -33,6 +34,7 @@ public class WeaponBase : MonoBehaviour
     {
         currentAmmo = magazineSize;
         currentTotalAmmo = totalAmmo;
+        cam = FindAnyObjectByType<Camera>().transform;
     }
 
     protected virtual void Update()
@@ -57,7 +59,6 @@ public class WeaponBase : MonoBehaviour
         return Input.GetButton("Fire1") && Time.time >= nextFireTime;
     }
 
- 
     protected virtual void Shoot()
     {
         nextFireTime = Time.time + fireRate;
@@ -68,22 +69,31 @@ public class WeaponBase : MonoBehaviour
         if (muzzleFlash != null)
             muzzleFlash.Play();
 
-        Ray ray = new Ray(cam.position, cam.forward);
-        RaycastHit hit;
-
-        if (Physics.Raycast(ray, out hit, range))
-        {
-            Debug.DrawLine(ray.origin, hit.point, Color.green, 0.5f);
-            OnHit(hit);
-        }
-        else
-        {
-            Debug.DrawLine(ray.origin, ray.origin + ray.direction * range, Color.red, 0.5f);
-        }
-
-        OnShoot();
+        StartCoroutine(DelayedRaycast());
     }
 
+    IEnumerator DelayedRaycast()
+    {
+        Ray ray = new Ray(cam.position, cam.forward);
+        float elapsedTime = 0f;
+        float travelTime = range / bulletSpeed;
+
+        while (elapsedTime < travelTime)
+        {
+            elapsedTime += Time.deltaTime;
+            float stepDistance = bulletSpeed * Time.deltaTime;
+
+            if (Physics.Raycast(ray.origin, ray.direction, out RaycastHit hit, stepDistance))
+            {
+                Debug.DrawLine(ray.origin, hit.point, Color.green, 0.5f);
+                OnHit(hit);
+                yield break;
+            }
+
+            ray.origin += ray.direction * stepDistance;
+            yield return null;
+        }
+    }
 
     protected virtual void OnHit(RaycastHit hit)
     {
@@ -91,17 +101,18 @@ public class WeaponBase : MonoBehaviour
         if (target != null)
             target.TakeDamage(damage);
 
-        if (impactEffect != null)
-        {
-            GameObject fx = Instantiate(impactEffect, hit.point,
-                Quaternion.LookRotation(hit.normal));
-            Destroy(fx, 1f);
-        }
+        //if (hit.collider.CompareTag("BulletImpact"))
+        //{
+        //    if (impactEffect != null)
+        //    {
+        //        GameObject fx = Instantiate(impactEffect, hit.point,
+        //            Quaternion.LookRotation(hit.normal));
+        //        Destroy(fx, 1f);
+        //    }
+        //}
     }
 
-
     protected virtual void OnShoot() { }
-
 
     protected virtual System.Collections.IEnumerator Reload()
     {
